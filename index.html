@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Slither.io Style Game</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background-color: #111;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      color: white;
+    }
+    #game-over, #start-screen {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    #game-over h1 {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    #game-over p {
+      font-size: 24px;
+    }
+    #start-screen {
+      display: block;
+    }
+    #start-button {
+      padding: 10px 20px;
+      font-size: 20px;
+      margin-top: 20px;
+      cursor: pointer;
+      background-color: lime;
+      color: black;
+      border: none;
+      border-radius: 10px;
+    }
+    #casual-chaos {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      font-size: 14px;
+      color: lime;
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 5px 10px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="start-screen">
+    <h1>Welcome to Slither Game</h1>
+    <p>Click the button below to start</p>
+    <button id="start-button">Start Game</button>
+  </div>
+  <div id="game-over" style="display: none;">
+    <h1>You Lose</h1>
+    <p id="final-score"></p>
+  </div>
+  <div id="casual-chaos">Casual Chaos - @72ThereIsNoInternet83</div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const startScreen = document.getElementById("start-screen");
+    const startButton = document.getElementById("start-button");
+
+    const UNIT = 20;
+    const BASE_WIDTH = canvas.width;
+    const BASE_HEIGHT = canvas.height;
+
+    let snake = [{ x: 200, y: 200 }];
+    let score = 0;
+    let started = false;
+    let dots = [];
+    const dotCount = 10;
+
+    let target = { x: 200, y: 200 };
+    let baseSpeed = 2;
+    let speed = baseSpeed;
+    let mouseDown = false;
+    let timeAlive = 0;
+    let borderMargin = 0;
+
+    let smallDotSound = new Audio('https://freesound.org/data/previews/66/66717_931655-lq.mp3');
+    let bigDotSound = new Audio('https://freesound.org/data/previews/320/320655_5260877-lq.mp3');
+    let gameOverSound = new Audio('https://freesound.org/data/previews/456/456404_5121236-lq.mp3');
+
+    function randomPosition() {
+      const width = BASE_WIDTH - 2 * borderMargin;
+      const height = BASE_HEIGHT - 2 * borderMargin;
+      return {
+        x: Math.floor(Math.random() * (width / UNIT)) * UNIT + borderMargin,
+        y: Math.floor(Math.random() * (height / UNIT)) * UNIT + borderMargin
+      };
+    }
+
+    function spawnDot(type = 'small') {
+      let dot = randomPosition();
+      dot.type = type;
+      dots.push(dot);
+    }
+
+    function spawnInitialDots() {
+      for (let i = 0; i < dotCount; i++) {
+        spawnDot(Math.random() < 0.2 ? 'big' : 'small');
+      }
+    }
+
+    function drawSnake() {
+      ctx.fillStyle = "lime";
+      for (let part of snake) {
+        ctx.fillRect(part.x, part.y, UNIT, UNIT);
+      }
+    }
+
+    function drawDots() {
+      for (let dot of dots) {
+        ctx.fillStyle = dot.type === 'big' ? 'red' : 'yellow';
+        ctx.beginPath();
+        ctx.arc(dot.x + UNIT / 2, dot.y + UNIT / 2, UNIT / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawBorder() {
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(borderMargin, borderMargin, BASE_WIDTH - 2 * borderMargin, BASE_HEIGHT - 2 * borderMargin);
+    }
+
+    function moveSnake() {
+      if (mouseDown) {
+        speed = baseSpeed * 2;
+      } else {
+        speed = baseSpeed;
+      }
+
+      let head = { ...snake[0] };
+      let dx = target.x - head.x;
+      let dy = target.y - head.y;
+      let dist = Math.hypot(dx, dy);
+
+      if (dist > speed) {
+        head.x += (dx / dist) * speed;
+        head.y += (dy / dist) * speed;
+        head.x = Math.round(head.x);
+        head.y = Math.round(head.y);
+      }
+
+      snake.unshift(head);
+
+      let eaten = false;
+      for (let i = 0; i < dots.length; i++) {
+        if (Math.abs(head.x - dots[i].x) < UNIT && Math.abs(head.y - dots[i].y) < UNIT) {
+          const type = dots[i].type;
+          if (type === 'small') {
+            score += 1;
+            smallDotSound.play();
+          } else {
+            score += 3;
+            bigDotSound.play();
+            snake.push({}, {}, {});
+          }
+          dots.splice(i, 1);
+          spawnDot(type);
+          eaten = true;
+          break;
+        }
+      }
+
+      if (!eaten) snake.pop();
+    }
+
+    function checkCollision() {
+      let head = snake[0];
+      if (head.x < borderMargin || head.x >= BASE_WIDTH - borderMargin ||
+          head.y < borderMargin || head.y >= BASE_HEIGHT - borderMargin) {
+        return true;
+      }
+      return false;
+    }
+
+    function drawScore() {
+      ctx.fillStyle = 'white';
+      ctx.font = '20px Arial';
+      ctx.fillText(`Score: ${score}`, 10, 20);
+    }
+
+    function gameOver() {
+      gameOverSound.play();
+      document.getElementById("final-score").innerText = `Score: ${score}`;
+      document.getElementById("game-over").style.display = "block";
+      setTimeout(resetGame, 2000);
+    }
+
+    function resetGame() {
+      snake = [{ x: 200, y: 200 }];
+      score = 0;
+      started = false;
+      dots = [];
+      target = { x: 200, y: 200 };
+      borderMargin = 0;
+      timeAlive = 0;
+      document.getElementById("game-over").style.display = "none";
+      startScreen.style.display = "block";
+    }
+
+    function gameLoop() {
+      if (started) {
+        timeAlive++;
+        if (timeAlive % 300 === 0 && borderMargin < 200) {
+          borderMargin += 5;
+        }
+        ctx.clearRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
+        moveSnake();
+        if (checkCollision()) {
+          gameOver();
+          return;
+        }
+        drawBorder();
+        drawSnake();
+        drawDots();
+        drawScore();
+      }
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      if (!started) return;
+      const rect = canvas.getBoundingClientRect();
+      target.x = e.clientX - rect.left;
+      target.y = e.clientY - rect.top;
+    });
+
+    document.addEventListener('mousedown', () => {
+      mouseDown = true;
+    });
+
+    document.addEventListener('mouseup', () => {
+      mouseDown = false;
+    });
+
+    startButton.addEventListener('click', () => {
+      started = true;
+      spawnInitialDots();
+      startScreen.style.display = "none";
+    });
+
+    setInterval(gameLoop, 30);
+  </script>
+</body>
+</html>
+
+
